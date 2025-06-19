@@ -4,7 +4,6 @@ from datetime import datetime, time
 import concurrent.futures
 import traceback
 import pandas as pd
-import time
 
 # Setup
 st.set_page_config(page_title="Cash-Futures Arbitrage", layout="wide")
