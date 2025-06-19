@@ -4,7 +4,6 @@ from datetime import datetime, time
 import concurrent.futures
 import traceback
 import pandas as pd
-
 # Setup
 st.set_page_config(page_title="Cash-Futures Arbitrage", layout="wide")
 st.title("📈 NSE Cash-Futures Arbitrage Dashboard")
@@ -73,7 +72,7 @@ st.info("⏳ Awaiting data...")
 
 data = update_data()
 df = pd.DataFrame(data)
-df = df.sort_values("Annualized CoC (%)", ascending=False)
+
 def highlight_coc(row):
     return ['background-color: #3e403e' if row['Annualized CoC (%)'] > 8 else ''] * len(row)
 st.dataframe(df.style.apply(highlight_coc, axis=1), use_container_width=True)
