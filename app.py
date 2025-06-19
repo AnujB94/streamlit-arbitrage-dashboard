@@ -4,6 +4,7 @@ from datetime import datetime, time
 import concurrent.futures
 import traceback
 import pandas as pd
+import time
 
 # Setup
 st.set_page_config(page_title="Cash-Futures Arbitrage", layout="wide")
@@ -67,26 +68,15 @@ def update_data():
             result = f.result()
             if result:
                 results.append(result)
-    st.session_state.results = results
-    st.session_state.last_updated = datetime.now().strftime("%H:%M:%S")
+    return results
 
-# Refresh trigger
-if "last_updated" not in st.session_state:
-    update_data()
-elif st.button("🔄 Refresh Now") or (is_market_open() and datetime.now().second % 60 == 0):
-    update_data()
+st.info("⏳ Awaiting data...")
 
-# Display results
-if "results" in st.session_state and st.session_state.results:
-    df = pd.DataFrame(st.session_state.results)
-    df = df.sort_values("Annualized CoC (%)", ascending=False)
-
-    def highlight_coc(row):
-        return ['background-color: #3e403e' if row['Annualized CoC (%)'] > 8 else ''] * len(row)
-
-    st.dataframe(df.style.apply(highlight_coc, axis=1), use_container_width=True)
-    st.caption(f"Last updated at ⏰ {st.session_state.last_updated}")
-else:
-    st.info("⏳ Awaiting data...")
+data = update_data()
+df = pd.DataFrame(data)
+df = df.sort_values("Annualized CoC (%)", ascending=False)
+def highlight_coc(row):
+    return ['background-color: #3e403e' if row['Annualized CoC (%)'] > 8 else ''] * len(row)
+st.dataframe(df.style.apply(highlight_coc, axis=1), use_container_width=True)
 
 st.caption("Auto-updates every 60s during market hours • Parallel fetch via ThreadPool • Powered by NSElib • Built by Anuj")
