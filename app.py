@@ -1,14 +1,16 @@
 import streamlit as st
 from nselib import capital_market, derivatives
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import concurrent.futures
 import traceback
 import pandas as pd
-# Setup
+import pytz
+
+
 st.set_page_config(page_title="Cash-Futures Arbitrage", layout="wide")
 st.title("📈 NSE Cash-Futures Arbitrage Dashboard")
 
-# Market hours check
+
 def is_market_open():
     now = datetime.now()
     return time(9, 15) <= now.time() <= time(15, 30) and now.weekday() < 5
@@ -16,12 +18,15 @@ def is_market_open():
 if not is_market_open():
     st.warning("⚠️ NSE market is closed (9:15 AM - 3:30 PM IST, Mon-Fri). Data may be stale.")
 
-# Symbols
+
 all_fno = ['NIFTY', 'NIFTYIT', 'BANKNIFTY', 'MANAPPURAM', 'MAXHEALTH', 'ICICIGI', 'OIL', 'JUBLFOOD', 'GLENMARK', 'BEL', 'ASTRAL', 'MUTHOOTFIN', 'SUPREMEIND', 'HAL', 'BDL', 'BLUESTARCO', 'ONGC', 'POLICYBZR', 'BIOCON', 'SOLARINDS', 'GODREJPROP', 'CDSL', 'TORNTPOWER', 'PRESTIGE', 'DLF', 'MCX', 'OFSS', 'CHAMBLFERT', 'TECHM', 'OBEROIRLTY', 'MFSL', 'PIIND', 'LODHA', 'APLAPOLLO', 'COFORGE', 'DELHIVERY', 'SBICARD', 'KALYANKJIL', 'PPLPHARMA', 'BHARATFORG', 'WIPRO', 'TCS', 'CIPLA', 'BOSCHLTD', 'LTIM', 'TVSMOTOR', 'NBCC', 'EICHERMOT', 'TATACOMM', 'MARUTI', 'PAGEIND', 'SRF', 'ALKEM', 'CROMPTON', 'APOLLOHOSP', 'INDIANB', 'NYKAA', 'LAURUSLABS', 'SUNPHARMA', 'KAYNES', 'DRREDDY', 'SHRIRAMFIN', 'BHEL', 'CUMMINSIND', 'UPL', 'IRCTC', 'KEI', 'GAIL', 'SIEMENS', 'MAZDOCK', 'ASIANPAINT', 'MARICO', 'BRITANNIA', 'TRENT', 'TATAMOTORS', 'BHARTIARTL', 'HCLTECH', 'SHREECEM', 'INFY', 'NESTLEIND', 'ASHOKLEY', 'BAJFINANCE', 'JIOFIN', 'HINDCOPPER', 'TORNTPHARM', 'HDFCLIFE', 'ABB', 'BALKRISIND', 'COALINDIA', 'CGPOWER', 'BANKBARODA', 'TATASTEEL', 'POLYCAB', 'HINDZINC', 'TATACONSUM', 'PERSISTENT', 'ICICIPRULI', 'MANKIND', 'PATANJALI', 'FEDERALBNK', 'M&M', 'NTPC', 'LICI', 'VEDL', 'RECLTD', 'SAIL', 'AXISBANK', 'ZYDUSLIFE', 'LT', 'KPITTECH', 'ICICIBANK', 'HINDUNILVR', 'SBILIFE', 'CESC', 'HEROMOTOCO', 'NATIONALUM', 'NAUKRI', 'AUROPHARMA', 'PHOENIXLTD', 'LICHSGFIN', 'BAJAJFINSV', 'DMART', 'MOTHERSON', 'MPHASIS', 'IDFCFIRSTB', 'VOLTAS', 'AMBUJACEM', 'INDUSTOWER', 'DIVISLAB', 'TATAPOWER', 'PETRONET', 'ETERNAL', 'DALBHARAT', 'JSWSTEEL', 'UNOMINDA', 'YESBANK', 'ACC', 'GRASIM', 'FORTIS', 'PIDILITIND', 'BSOFT', 'TATACHEM', 'ULTRACEMCO', 'TITAN', 'TATATECH', 'HAVELLS', 'RELIANCE', 'ABCAPITAL', 'KOTAKBANK', 'BAJAJ-AUTO', 'IRB', 'M&MFIN', 'IDEA', 'HUDCO', 'POWERGRID', 'LTF', 'ABFRL', 'TITAGARH', 'GMRAIRPORT', 'DABUR', 'DIXON', 'IRFC', 'POONAWALLA', 'CYIENT', 'BSE', 'SJVN', 'CONCOR', 'PAYTM', 'BANKINDIA', 'VBL', 'RVNL', 'INDHOTEL', 'SYNGENE', 'HDFCBANK', 'TATAELXSI', 'LUPIN', 'PNB', 'TIINDIA', 'AUBANK', 'INDUSINDBK', 'GODREJCP', 'COLPAL', 'HDFCAMC', 'ADANIENT', 'BANDHANBNK', 'HINDALCO', 'RBLBANK', 'IIFL', 'SONACOMS', 'NHPC', 'JSWENERGY', 'SBIN', 'JSL', 'HINDPETRO', 'AARTIIND', 'ADANIENSOL', 'MGL', 'ITC', 'IOC', 'CHOLAFIN', 'IEX', 'IGL', 'BPCL', 'PEL', 'HFCL', 'INOXWIND', 'ATGL', 'JINDALSTEL', 'CAMS', 'ADANIGREEN', 'UNITDSPR', 'PFC', 'NCC', 'EXIDEIND', 'UNIONBANK', 'NMDC', 'ADANIPORTS', 'PNBHOUSING', 'GRANULES', 'ANGELONE', 'CANBK', 'INDIGO', 'IREDA']
 default_stocks = ["INFY", "TCS", "RELIANCE", "HDFCBANK", "ITC", "ICICIBANK"]
-symbols = st.multiselect("Select Stocks", sorted(all_fno[3:]), default= sorted(all_fno[3:]))
+symbols = st.multiselect("Select Stocks", sorted(all_fno[3:]), default= default_stocks)
 
-# Data Retrieval
+today = datetime.today()
+from_date = (today - timedelta(days=7)).strftime("%d-%m-%Y")
+to_date = today.strftime("%d-%m-%Y")
+
 def process_symbol(symbol):
     try:
         fut_data = derivatives.future_price_volume_data(
@@ -57,18 +62,17 @@ def process_symbol(symbol):
         traceback.print_exc()
         return None
 
-# Run concurrent fetch + update session state
-def update_data():
-    results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=70) as executor:
-        futures = [executor.submit(process_symbol, symbol) for symbol in symbols]
-        for f in concurrent.futures.as_completed(futures):
-            result = f.result()
-            if result:
-                results.append(result)
-    return results
 
-st.info("⏳ Awaiting data...")
+with st.spinner("⏳ Awaiting data..."):
+    def update_data():
+        results = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+            futures = [executor.submit(process_symbol, symbol) for symbol in symbols]
+            for f in concurrent.futures.as_completed(futures):
+                result = f.result()
+                if result:
+                    results.append(result)
+        return results
 
 data = update_data()
 df = pd.DataFrame(data)
